@@ -106,8 +106,8 @@ static void compac_set_frequency(struct cgpu_info *compac, float frequency, bool
 	f[0] = (pll) & 0xff;
 	f[1] = (pll >> 8) & 0xff;
 
-	applog(LOG_INFO,"%s %d: set frequency: %.2f [%02x %02x]",  compac->drv->name, compac->device_id, info->frequency, f[1], f[0]);
-	applog(LOG_INFO,"%s %d: Ticket mask set to %d", compac->drv->name, compac->device_id, info->ticket_mask);
+	applog(LOG_WARNING,"%s %d: set frequency: %.2f [%02x %02x]",  compac->drv->name, compac->device_id, info->frequency, f[1], f[0]);
+	applog(LOG_WARNING,"%s %d: Ticket mask set to %d", compac->drv->name, compac->device_id, info->ticket_mask);
 
 	compac_send(compac, 0x82, f[1], f[0], 0x00); // Set asic frequency
 
@@ -139,7 +139,7 @@ static uint64_t compac_check_nonce(struct cgpu_info *compac)
 	info->nonces++;
 	info->nonceless = 0;
 	if (nonce == info->prev_nonce) {
-		applog(LOG_INFO, "Dup Nonce : %08x on %s %d", nonce, compac->drv->name, compac->device_id);
+		applog(LOG_WARNING, "Dup Nonce : %08x on %s %d", nonce, compac->drv->name, compac->device_id);
 		info->dups++;
 		return hashes;
 	}

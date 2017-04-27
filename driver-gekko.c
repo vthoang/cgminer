@@ -335,8 +335,8 @@ static int64_t compac_scanwork(struct thr_info *thr)
 		init_task(info);
 
 		frequency = info->frequency;
-		if (info->frequency != info->frequency_requested && ms_tdiff(&now, &info->last_freq_set) > 9 * 1000) {
-			frequency += 25;
+		if (info->frequency != info->frequency_requested && ms_tdiff(&now, &info->last_freq_set) >= (info->step_delay * 1000)) {
+			frequency += info->step_freq;
 		}
 		if (frequency != info->frequency)
 			compac_set_frequency(compac, frequency, true);
@@ -449,6 +449,10 @@ static bool compac_prepare(struct thr_info *thr)
 	info->frequency = 1;
 	info->write_err = 0;
 
+	info->start_freq = opt_gekko_start_freq;
+	info->step_delay = opt_gekko_step_delay;
+	info->step_freq = opt_gekko_step_freq;
+	
 	cgtime(&info->start_time);
 	cgtime(&info->last_scanhash);
 	cgtime(&info->last_nonce);
@@ -488,6 +492,9 @@ static bool compac_init(struct thr_info *thr)
 	}
 
 	applog(LOG_WARNING,"Found %d chip(s) on %s %d", info->chips, compac->drv->name, compac->device_id);
+	applog(LOG_WARNING,"Start Frequency: %dMHz - %s %d", info->start_freq, compac->drv->name, compac->device_id);
+	applog(LOG_WARNING,"Ramp Step Frequency: %dMHz - %s %d", info->step_freq, compac->drv->name, compac->device_id);
+	applog(LOG_WARNING,"Ramp Step Delay: %ds - %s %d", info->step_delay, compac->drv->name, compac->device_id);
 
 	switch (info->ident) {
 		case IDENT_BSC:
@@ -510,6 +517,8 @@ static bool compac_init(struct thr_info *thr)
 			info->frequency_start = BASE_FREQ;
 			break;
 	}
+	
+	info->frequency_start = info->start_freq;
 
 	info->frequency_start = (info->frequency_requested < info->frequency_start) ? info->frequency_requested : info->frequency_start;
 

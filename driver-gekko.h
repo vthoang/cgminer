@@ -24,6 +24,10 @@ struct COMPAC_INFO {
 	float frequency;             // Chip Frequency
 	float frequency_requested;   // Requested Frequency
 	float frequency_start;       // Starting Frequency
+	
+	int start_freq;
+	int step_delay;
+	int step_freq;
 
 	uint32_t scanhash_ms;        // Avg time(ms) inside scanhash loop
 	uint32_t task_ms;            // Avg time(ms) between task sent to device

@@ -1,6 +1,7 @@
 #include "math.h"
 #include "miner.h"
 #include "usbutils.h"
+#include "driver-gekko-utils.h"
 
 #define TX_TASK_SIZE 64          // BM1384 Work Task Request Size
 #define RX_RESP_SIZE  5          // BM1384 Response Size
@@ -18,16 +19,15 @@ struct COMPAC_INFO {
 	enum sub_ident ident;        // Miner identity
 	struct thr_info *thr;        // Running Thread
 	struct thr_info rthr;        // Listening Thread
+	struct thr_info wthr;        // Writing Thread
 
-	pthread_mutex_t lock;        // Mutex
-
+	pthread_mutex_t lock;        // Struct Mutex
+	pthread_mutex_t rx_lock;     // Read Mutex
+	pthread_mutex_t tx_lock;     // Write Mutex
+	
 	float frequency;             // Chip Frequency
 	float frequency_requested;   // Requested Frequency
 	float frequency_start;       // Starting Frequency
-	
-	int start_freq;
-	int step_delay;
-	int step_freq;
 
 	uint32_t scanhash_ms;        // Avg time(ms) inside scanhash loop
 	uint32_t task_ms;            // Avg time(ms) between task sent to device
@@ -38,7 +38,7 @@ struct COMPAC_INFO {
 	uint32_t prev_nonce;         // Last nonce found
 
 	int failing;                 // Flag failing sticks
-	int write_err;               // Consecutive usb write errors
+	bool shutdown;
 	bool active;                 // Done ramping, send live work and get nonces
 
 	int accepted;                // Nonces accepted
@@ -67,9 +67,8 @@ struct COMPAC_INFO {
 	unsigned char work_rx[RX_RESP_SIZE];    // Receive buffer
 
 	struct work *work[MAX_JOBS];            // Work ring buffer
+	
+	struct threadqueue out_queue;           // Pending write
+	struct threadqueue in_queue;            // Read data
 
 };
-
-void stuff_int32(unsigned char *dst, uint32_t x);
-void stuff_reverse(unsigned char *dst, unsigned char *src, uint32_t len);
-uint64_t bound(uint64_t value, uint64_t lower_bound, uint64_t upper_bound);

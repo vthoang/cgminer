@@ -1024,6 +1024,7 @@ extern char *opt_bitburner_fury_options;
 extern float opt_gekko_gsc_freq;
 extern float opt_gekko_gsd_freq;
 extern float opt_gekko_gse_freq;
+extern bool opt_gekko_freq_lock;
 extern int opt_gekko_start_freq;
 extern int opt_gekko_step_freq;
 extern int opt_gekko_step_delay;

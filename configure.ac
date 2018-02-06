@@ -530,7 +530,7 @@ else
 	want_libbitfury=false
 fi
 
-if test x$avalon2$avalon4$avalon7$avalon_miner$hashratio != xnonononono; then
+if test x$avalon2$avalon4$avalon7$avalon_miner$gekko$hashratio != xnononononono; then
 	want_crc16=true
 else
 	want_crc16=false

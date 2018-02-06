@@ -420,9 +420,10 @@ static int64_t compac_scanwork(struct thr_info *thr)
 					}
 				} else {
 					if (info->frequency != info->frequency_start) {
-						if (!opt_gekko_freq_lock) {
-							info->frequency_start -= 6.25;
-						}
+						applog(LOG_WARNING,"%s %d: miner restarted", compac->drv->name, compac->device_id);
+						//if (!opt_gekko_freq_lock) {
+						//	info->frequency_start -= 6.25;
+						//}
 						info->mining_state = MINER_INIT;
 						compac->hw_errors++;
 					}		
@@ -574,6 +575,7 @@ static bool compac_init(struct thr_info *thr)
 			info->frequency_requested = 200;
 			break;
 	}
+	info->frequency_requested = ceil(100 * (info->frequency_requested) / 625.0) * 6.25;
 	info->frequency_start = info->frequency_requested;
 	
 	pthread_mutex_init(&info->lock, NULL);

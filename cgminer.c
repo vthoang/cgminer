@@ -274,7 +274,7 @@ int opt_bet_clk = 0;
 #ifdef USE_GEKKO
 float opt_gekko_gsc_freq = 150;
 float opt_gekko_gsd_freq = 100;
-float opt_gekko_gse_freq = 200;
+float opt_gekko_gse_freq = 150;
 bool opt_gekko_freq_lock = false;
 int opt_gekko_start_freq = 75;
 int opt_gekko_step_freq = 25;

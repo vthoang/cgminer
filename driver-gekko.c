@@ -232,19 +232,14 @@ static void *compac_listen(void *object)
 					frequency = (info->rx[1] + 1) * 6.25 / (1 + info->rx[2] & 0x0f) * pow(2, (3 - info->rx[3])) + ((info->rx[2] >> 4) * 6.25);
 				}
 				
-				if (ms_tdiff(&now, &info->last_frequency_report) > 500) {
-					applog(LOG_WARNING,"%s %d: chip reported frequency of %.2f", compac->drv->name, compac->device_id, frequency);
+				//if (ms_tdiff(&now, &info->last_frequency_report) > 500) {
+				if (frequency != info->frequency) {
+					applog(LOG_WARNING,"%s %d: picked up frequency change %.2fMHz -> %.2fMHz", compac->drv->name, compac->device_id, info->frequency, frequency);
 				} else {
-					applog(LOG_INFO,"%s %d: chip reported frequency of %.2f", compac->drv->name, compac->device_id, frequency);
+					applog(LOG_INFO,"%s %d: chip reported frequency of %.2fMHz", compac->drv->name, compac->device_id, frequency);
 				}
 				cgtime(&info->last_frequency_report);
 
-				//if (frequency != info->frequency_requested) {
-				//	if (frequency < info->frequency && frequency == 200 && info->mining_state == MINER_MINING) {
-				//		applog(LOG_WARNING,"%s %d: miner auto-restart kicked in.", compac->drv->name, compac->device_id);
-				//		info->mining_state = MINER_INIT;
-				//	}
-				//}
 				info->frequency = frequency;
 				info->hashrate = info->frequency * info->chips * info->hpm * 1000000;
 				info->fullscan_ms = 1000.0 * 0xffffffffull / info->hashrate;
@@ -277,6 +272,7 @@ static void *compac_listen(void *object)
 		} else {
 			switch (info->mining_state) {
 				case MINER_CHIP_COUNT_XX:
+					applog(LOG_WARNING, "%s %d: Found %d chip(s)", compac->drv->name, compac->device_id, info->chips);
 					info->mining_state = MINER_CHIP_COUNT_OK;
 					break;
 				default:
@@ -302,10 +298,10 @@ static void init_task(struct COMPAC_INFO *info)
 			memset(info->task + 52, 0xff, 12);
 		}
 
-		info->task[40] = (info->ramp_hcn >> 24) & 0xff;
-		info->task[41] = (info->ramp_hcn >> 16) & 0xff;
-		info->task[42] = (info->ramp_hcn >> 8)  & 0xff;
-		info->task[43] = (info->ramp_hcn)       & 0xff;
+		info->task[40] = (info->task_hcn >> 24) & 0xff;
+		info->task[41] = (info->task_hcn >> 16) & 0xff;
+		info->task[42] = (info->task_hcn >> 8)  & 0xff;
+		info->task[43] = (info->task_hcn)       & 0xff;
 		info->task[51] = info->job_id & 0xff;
 	}
 }
@@ -323,7 +319,7 @@ static int64_t compac_scanwork(struct thr_info *thr)
 	cgtime(&now);
 	info->scanhash_ms = (info->scanhash_ms * 9 + ms_tdiff(&now, &info->last_scanhash)) / 10;
 	cgtime(&info->last_scanhash);
-	max_task_wait = 0.6 * info->fullscan_ms;
+	max_task_wait = bound(0.80 * info->fullscan_ms - 5, 5, info->fullscan_ms);
 	sleep_ms = bound(ceil(max_task_wait/15.0), 1, 200);
 	
 	switch (info->mining_state) {
@@ -341,8 +337,8 @@ static int64_t compac_scanwork(struct thr_info *thr)
 			break;
 		case MINER_CHIP_COUNT_OK:
 			cgsleep_ms(100);
-			applog(LOG_WARNING, "%s %d: Found %d chip(s)", compac->drv->name, compac->device_id, info->chips);
-			info->ramp_hcn = (0xffffffff / info->chips);
+			info->task_hcn = (0xffffffff / info->chips);
+			//info->task_hcn = 0;
 
 			compac_set_frequency(compac, info->frequency_start);
 			compac_send_chain_inactive(compac);
@@ -368,6 +364,7 @@ static int64_t compac_scanwork(struct thr_info *thr)
 			break;
 		case MINER_OPEN_CORE_OK:
 			applog(LOG_WARNING, "%s %d: begin mining", compac->drv->name, compac->device_id);
+			cgtime(&info->start_time);
 			info->mining_state = MINER_MINING;
 			break;
 		case MINER_MINING:
@@ -419,13 +416,23 @@ static int64_t compac_scanwork(struct thr_info *thr)
 						compac_send(compac, (char *)buffer, sizeof(buffer), 8 * sizeof(buffer) - 5);
 					}
 				} else {
+					char displayed_hashes[16], displayed_rolling[16];
+					uint64_t hash_5m, hash_1m;
+
+					hash_1m = (double)rolling1 * 1000000ull;
+					hash_5m = (double)rolling5 * 1000000ull;
+					if ((hash_1m < (0.75 * info->hashrate)) && ms_tdiff(&now, &info->start_time) > (3 * 60 * 1000)) {
+						applog(LOG_WARNING, "%" PRIu64 " : %" PRIu64 " : %" PRIu64, hash_1m, hash_5m, info->hashrate);
+						applog(LOG_WARNING,"%s %d: unhealthy miner", compac->drv->name, compac->device_id);
+						info->ramping = 0;
+						info->mining_state = MINER_CHIP_COUNT_OK;
+						inc_hw_errors(info->thr);
+					}
+					
 					if (info->frequency != info->frequency_start) {
 						applog(LOG_WARNING,"%s %d: miner restarted", compac->drv->name, compac->device_id);
-						//if (!opt_gekko_freq_lock) {
-						//	info->frequency_start -= 6.25;
-						//}
 						info->mining_state = MINER_INIT;
-						compac->hw_errors++;
+						inc_hw_errors(info->thr);
 					}		
 				}
 			}

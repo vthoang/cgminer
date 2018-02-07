@@ -39,7 +39,7 @@ struct COMPAC_INFO {
     uint32_t hpm;                // Chip Hash per MHz - Documented (Gh/s) / (MHz)
 	uint64_t hashrate;           // Estimated hashrate = hpm x chips x frequency
 
-	uint64_t ramp_hcn;           // HCN high watermark at ramping
+	uint64_t task_hcn;           // Hash Count Number - max nonce iter.
 	uint32_t prev_nonce;         // Last nonce found
 
 	int failing;                 // Flag failing sticks
@@ -55,6 +55,7 @@ struct COMPAC_INFO {
 	uint32_t difficulty;         // For computing hashrate
 	uint64_t hashes;             // Hashes completed
 	uint32_t job_id;             // JobId incrementer
+    uint32_t low_hash;           // Tracks of low hashrate
 	uint32_t max_job_id;         // JobId cap
 	uint32_t ramping;            // Ramping incrementer
     uint32_t rx_len;             // rx length

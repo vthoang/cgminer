@@ -54,7 +54,7 @@ static void compac_send(struct cgpu_info *compac, unsigned char *req_tx, uint32_
 	}
 	info->cmd[bytes - 1] |= bmcrc(req_tx, crc_bits);
 
-	cgsleep_ms(5);
+	cgsleep_ms(1);
 	dumpbuffer(compac, LOG_INFO, "TX", info->cmd, bytes);
 	usb_write(compac, info->cmd, bytes, &read_bytes, C_REQUESTRESULTS);
 }
@@ -379,7 +379,6 @@ static int64_t compac_scanwork(struct thr_info *thr)
 			break;
 		case MINER_OPEN_CORE_OK:
 			applog(LOG_WARNING, "%s %d: start work @ %.2fMHz", compac->drv->name, compac->device_id, info->frequency);
-			info->itr_ping = 0;
 			cgtime(&info->start_time);
 			cgtime(&info->last_frequency_adjust);
 			cgtime(&info->last_frequency_ping);
@@ -388,6 +387,55 @@ static int64_t compac_scanwork(struct thr_info *thr)
 			break;
 		case MINER_MINING:
 			if (info->update_work || (ms_tdiff(&now, &info->last_task) > max_task_wait)) {
+				if (ms_tdiff(&now, &info->last_frequency_ping) > 5000) {
+					if (info->asic_type == BM1384) {
+						unsigned char buffer[] = {0x84, 0x00, 0x04, 0x00};
+						compac_send(compac, (char *)buffer, sizeof(buffer), 8 * sizeof(buffer) - 5);
+					}
+					cgtime(&info->last_frequency_ping);
+				}
+
+				if (info->accepted > 10 && ms_tdiff(&now, &info->last_frequency_ping) > 100 && 
+					ms_tdiff(&info->last_nonce, &info->last_frequency_adjust) > 0 && 
+					ms_tdiff(&now, &info->last_frequency_adjust) >= bound(opt_gekko_step_delay, 1, 600) * 1000) {
+					if (info->frequency != info->frequency_requested) {
+						float new_frequency;
+						if (info->frequency < info->frequency_requested) {
+							new_frequency = info->frequency + opt_gekko_step_freq;
+							if (new_frequency > info->frequency_requested) {
+								new_frequency = info->frequency_requested;
+							}
+						} else {
+							new_frequency = info->frequency - opt_gekko_step_freq;
+							if (new_frequency < info->frequency_requested) {
+								new_frequency = info->frequency_requested;
+							}
+						}
+						compac_set_frequency(compac, new_frequency);
+						compac_send_chain_inactive(compac);
+						info->accepted = 0;
+					}
+
+					cgtime(&info->last_frequency_adjust);
+					//uint64_t hashrate_5m, hashrate_1m;
+
+					//hashrate_1m = (double)rolling1 * 1000000ull;
+					//hashrate_5m = (double)rolling5 * 1000000ull;
+					//if ((hashrate_1m < (0.75 * info->hashrate)) && ms_tdiff(&now, &info->start_time) > (3 * 60 * 1000)) {
+					//	applog(LOG_INFO, "%" PRIu64 " : %" PRIu64 " : %" PRIu64, hashrate_1m, hashrate_5m, info->hashrate);
+					//	applog(LOG_INFO,"%s %d: unhealthy miner", compac->drv->name, compac->device_id);
+					//	info->ramping = 0;
+					//	info->mining_state = MINER_CHIP_COUNT_OK;
+					//	inc_hw_errors(info->thr);
+					//}
+
+					//if (ms_tdiff(&now, &info->last_frequency_report) > (30 + 7500 * 3)) {
+					//	applog(LOG_WARNING,"%s %d: asic(s) went offline", compac->drv->name, compac->device_id);
+					//	usb_nodev(compac);
+					//	return -1;
+					//}
+				}
+
 				info->job_id = (info->job_id + 1) % info->max_job_id;
 
 				if (info->update_work) {
@@ -425,61 +473,7 @@ static int64_t compac_scanwork(struct thr_info *thr)
 				cgtime(&info->last_task);
 				return hashes;
 			} 
-
 			
-			if (ms_tdiff(&now, &info->last_frequency_ping) > 5000) {
-				if (info->asic_type == BM1384) {
-					unsigned char buffer[] = {0x84, 0x00, 0x04, 0x00};
-					compac_send(compac, (char *)buffer, sizeof(buffer), 8 * sizeof(buffer) - 5);
-				}
-				cgtime(&info->last_frequency_ping);
-			}
-			
-			if (info->accepted > 10 && ms_tdiff(&now, &info->last_frequency_ping) > 100 && 
-			    ms_tdiff(&info->last_nonce, &info->last_frequency_adjust) > 0 && 
-			    ms_tdiff(&now, &info->last_frequency_adjust) >= bound(opt_gekko_step_delay, 1, 600) * 1000) {
-				if (info->frequency != info->frequency_requested) {
-					float new_frequency;
-					if (info->frequency < info->frequency_requested) {
-						new_frequency = info->frequency + opt_gekko_step_freq;
-						if (new_frequency > info->frequency_requested) {
-							new_frequency = info->frequency_requested;
-						}
-					} else {
-						new_frequency = info->frequency - opt_gekko_step_freq;
-						if (new_frequency < info->frequency_requested) {
-							new_frequency = info->frequency_requested;
-						}
-					}
-					compac_set_frequency(compac, new_frequency);
-					compac_send_chain_inactive(compac);
-					info->accepted = 0;
-				}
-
-				cgtime(&info->last_frequency_adjust);
-				//if (info->itr_ping == 0) {
-				//} else {
-				//	char displayed_hashes[16], displayed_rolling[16];
-				//	uint64_t hashrate_5m, hashrate_1m;
-
-				//	hashrate_1m = (double)rolling1 * 1000000ull;
-				//	hashrate_5m = (double)rolling5 * 1000000ull;
-					//if ((hashrate_1m < (0.75 * info->hashrate)) && ms_tdiff(&now, &info->start_time) > (3 * 60 * 1000)) {
-					//	applog(LOG_INFO, "%" PRIu64 " : %" PRIu64 " : %" PRIu64, hashrate_1m, hashrate_5m, info->hashrate);
-					//	applog(LOG_INFO,"%s %d: unhealthy miner", compac->drv->name, compac->device_id);
-					//	info->ramping = 0;
-					//	info->mining_state = MINER_CHIP_COUNT_OK;
-					//	inc_hw_errors(info->thr);
-					//}
-
-					//if (ms_tdiff(&now, &info->last_frequency_report) > (30 + 7500 * 3)) {
-					//	applog(LOG_WARNING,"%s %d: asic(s) went offline", compac->drv->name, compac->device_id);
-					//	usb_nodev(compac);
-					//	return -1;
-					//}
-				//}
-				//info->itr_ping = (info->itr_ping + 1) % 2;
-			}
 			cgsleep_ms(sleep_ms);
 			break;
 		case MINER_MINING_DUPS:

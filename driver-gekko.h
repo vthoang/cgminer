@@ -46,7 +46,6 @@ struct COMPAC_INFO {
 	int accepted;                // Nonces accepted
 	int dups;                    // Duplicates found
 	int interface;               // USB interface
-	int itr_ping;                // Ping Iterator
 	int nonceless;               // Tasks sent.  Resets when nonce is found.
 	int nonces;                  // Nonces found
 	int zero_check;              // Received nonces from zero work

@@ -478,8 +478,19 @@ static int64_t compac_scanwork(struct thr_info *thr)
 			break;
 		case MINER_MINING_DUPS:
 			info->mining_state = MINER_MINING;
-			compac_set_frequency(compac, info->frequency);
-			compac_send_chain_inactive(compac);
+			if ((int)info->frequency == 200) {
+				//possible terminus reset condition.
+				compac_set_frequency(compac, info->frequency);
+				compac_send_chain_inactive(compac);
+				cgtime(&info->last_frequency_adjust);
+			} else {
+				//check for reset condition
+				if (info->asic_type == BM1384) {
+					unsigned char buffer[] = {0x84, 0x00, 0x04, 0x00};
+					compac_send(compac, (char *)buffer, sizeof(buffer), 8 * sizeof(buffer) - 5);
+				}
+				cgtime(&info->last_frequency_ping);
+			}
 			break;
 		default:
 			cgsleep_ms(20);

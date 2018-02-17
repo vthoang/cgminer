@@ -134,6 +134,7 @@ CGMiner specific configuration options:
   --enable-cointerra      Compile support for Cointerra ASICs (default disabled)
   --enable-drillbit       Compile support for Drillbit BitFury ASICs (default
                           disabled)
+  --enable-gekko          Compile support for GekkoScience (default disabled)
   --enable-hashfast       Compile support for Hashfast (default disabled)
   --enable-icarus         Compile support for Icarus (default disabled)
   --enable-klondike       Compile support for Klondike (default disabled)
@@ -287,6 +288,9 @@ Options for both config file and command line:
 --expiry|-E <arg>   Upper bound on how many seconds after getting work we consider a share from it stale (default: 120)
 --failover-only     Don't leak work to backup pools when primary pool is lagging
 --fix-protocol      Do not redirect to stratum protocol from GBT
+--gekko-2pac-freq <arg> Set GekkoScience 2Pac BM1384 frequency in MHz, range 6.25-500 (default 100.0)
+--gekko-compac-freq <arg> Set GekkoScience Compac BM1384 frequency in MHz, range 6.25-500 (default 150.0)
+--gekko-terminus-freq <arg> Set GekkoScience Terminus BM1384 frequency in MHz, range 6.25-500 (default 150.0)
 --hfa-hash-clock <arg> Set hashfast clock speed (default: 550)
 --hfa-fail-drop <arg> Set how many MHz to drop clockspeed each failure on an overlocked hashfast device (default: 10)
 --hfa-fan <arg>     Set fanspeed percentage for hashfast, single value or range (default: 10-85)
@@ -422,7 +426,6 @@ ASIC only options:
 --bitmine-a1-options <ref_clk>:<sys_clk>:<spi_clk>:<max_chip>
 --bxf-temp-target <arg> Set target temperature for BXF devices (default: 82)
 --bxm-bits <arg>    Set BXM bits for overclocking (default: 50)
---compac-freq <arg> Set GekkoScience Compac frequency in MHz, range 100-500 (default: 150.0)
 --hfa-hash-clock <arg> Set hashfast clock speed (default: 550)
 --hfa-fail-drop <arg> Set how many MHz to drop clockspeed each failure on an overlocked hashfast device (default: 10)
 --hfa-fan <arg>     Set fanspeed percentage for hashfast, single value or range (default: 10-85)

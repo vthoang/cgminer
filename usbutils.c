@@ -3871,6 +3871,7 @@ void usb_cleanup(void)
 			case DRIVER_bitfury:
 			case DRIVER_cointerra:
 			case DRIVER_drillbit:
+			case DRIVER_gekko:
 			case DRIVER_modminer:
 			case DRIVER_icarus:
 			case DRIVER_avalon:

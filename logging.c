@@ -64,7 +64,7 @@ void _applog(int prio, const char *str, bool force)
 		struct timeval tv = {0, 0};
 		struct tm *tm;
 
-		cgtime(&tv);
+		cgtime_real(&tv);
 
 		const time_t tmp_time = tv.tv_sec;
 		int ms = (int)(tv.tv_usec / 1000);

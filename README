@@ -896,6 +896,27 @@ quotas in a configuration file they would be specified thus:
         }
 ]
 
+---
+NICEHASH XNSUB
+
+You can use your miner with last extranonce support for nicehash by adding #xnsub at the address end, like this:
+
+./cgminer -o stratum+tcp://stratum.solo.nicehash.com:3334/#xnsub -u 17EWiYuSD4RZoCzQ6YS2CPqxi6NQPDthxk.github -p thanks --gekko-2pac-freq 200
+
+or, in your cgminer.conf file:
+
+{
+"pools" : [
+    	{
+		"url" : "stratum+tcp://stratum.solo.nicehash.com:3334/#xnsub",
+		"user" : "17EWiYuSD4RZoCzQ6YS2CPqxi6NQPDthxk.github",
+		"pass" : "thanks"
+	}
+],
+
+"kernel-path" : "/usr/local/bin",
+"gekko-2pac-freq" : "200"
+}
 
 ---
 SOLO MINING

@@ -725,7 +725,7 @@ static bool compac_init(struct thr_info *thr)
 		case IDENT_BSC:
 		case IDENT_GSC:
 			info->frequency_requested = opt_gekko_gsc_freq;
-			info->frequency_start = info->frequency_requested;
+			info->frequency_start = opt_gekko_start_freq;
 			break;
 		case IDENT_BSD:
 		case IDENT_GSD:

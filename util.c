@@ -3575,22 +3575,22 @@ void _cg_memcpy(void *dest, const void *src, unsigned int n, const char *file, c
 }
 
 void weight_to_target(uint32_t* target, double weight) {
-    double calc = pow(2, 256 - weight);
-    for(int i=0; i<8; ++i) {
-        target[i] = fmod(calc, 4294967296L);
-        calc /= 4294967296L;
-    }
-    for(int i=0; i<8; ++i) {
-        if (target[i]) {
-            target[i] = target[i] - 1;
-            break;
-        }
-        target[i] = 4294967295L;
-    }
+	double calc = pow(2, 256 - weight);
+	for(int i=0; i<8; ++i) {
+		target[i] = fmod(calc, 4294967296L);
+		calc /= 4294967296L;
+	}
+	for(int i=0; i<8; ++i) {
+		if (target[i]) {
+			target[i] = target[i] - 1;
+			break;
+		}
+		target[i] = 4294967295L;
+	}
 	if (opt_debug) {
-        char *htarget = bin2hex(target, 32);
+		char *htarget = bin2hex(target, 32);
 
-        applog(LOG_DEBUG, "Generated target %s (weight=%f)", htarget, weight);
-        free(htarget);
-    }
+		applog(LOG_DEBUG, "Generated target %s (weight=%f)", htarget, weight);
+		free(htarget);
+	}
 }

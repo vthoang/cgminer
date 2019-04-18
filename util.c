@@ -2280,153 +2280,46 @@ static inline bool configure_stratum_mining(struct pool __maybe_unused *pool)
 
 static bool parse_notify(struct pool *pool, json_t *val)
 {
-	char *job_id, *prev_hash, *coinbase1, *coinbase2, *bbversion, *nbit,
-	     *ntime, header[260];
-	unsigned char *cb1 = NULL, *cb2 = NULL;
-	size_t cb1_len, cb2_len, alloc_len;
-	bool clean, ret = false;
-	int merkles, i;
-	json_t *arr;
+	double weight;
+	const char *data, *job_id;
+	size_t nonce_size, dsize;
+	bool ret = false;
 
-	arr = json_array_get(val, 4);
-	if (!arr || !json_is_array(arr))
-		goto out;
+	job_id = json_string_value(json_object_get(val, "job_id"));
+	weight = json_real_value(json_object_get(val, "weight"));
+	nonce_size = json_integer_value(json_object_get(val, "nonce_size"));
+	data = json_string_value(json_object_get(val, "data"));
+	dsize = strlen(data) / 2;
 
-	merkles = json_array_size(arr);
-
-	job_id = json_array_string(val, 0);
-	prev_hash = __json_array_string(val, 1);
-	coinbase1 = json_array_string(val, 2);
-	coinbase2 = json_array_string(val, 3);
-	bbversion = __json_array_string(val, 5);
-	nbit = __json_array_string(val, 6);
-	ntime = __json_array_string(val, 7);
-	clean = json_is_true(json_array_get(val, 8));
-
-	get_vmask(pool, bbversion);
-
-	if (!valid_ascii(job_id) || !valid_hex(prev_hash) || !valid_hex(coinbase1) ||
-	    !valid_hex(coinbase2) || !valid_hex(bbversion) || !valid_hex(nbit) ||
-	    !valid_hex(ntime)) {
-		/* Annoying but we must not leak memory */
-		free(job_id);
-		free(coinbase1);
-		free(coinbase2);
+	if (!job_id || !weight || !data || !nonce_size) {
+		applog(LOG_ERR, "Stratum job: invalid parameters");
 		goto out;
 	}
+
+	ret = true;
 
 	cg_wlock(&pool->data_lock);
+
 	free(pool->swork.job_id);
-	pool->swork.job_id = job_id;
-	if (memcmp(pool->prev_hash, prev_hash, 64)) {
-		pool->swork.clean = true;
-	} else {
-		pool->swork.clean = clean;
-	}
-	snprintf(pool->prev_hash, 65, "%s", prev_hash);
-	cb1_len = strlen(coinbase1) / 2;
-	cb2_len = strlen(coinbase2) / 2;
-	snprintf(pool->bbversion, 9, "%s", bbversion);
-	snprintf(pool->nbit, 9, "%s", nbit);
-	snprintf(pool->ntime, 9, "%s", ntime);
-	if (pool->next_diff > 0) {
-		pool->sdiff = pool->next_diff;
-		pool->next_diff = pool->diff_after;
-		pool->diff_after = 0;
-	}
-	alloc_len = pool->coinbase_len = cb1_len + pool->n1_len + pool->n2size + cb2_len;
-	pool->nonce2_offset = cb1_len + pool->n1_len;
+	pool->swork.job_id = strdup(job_id);
 
-	for (i = 0; i < pool->merkles; i++)
-		free(pool->swork.merkle_bin[i]);
-	if (merkles) {
-		pool->swork.merkle_bin = cgrealloc(pool->swork.merkle_bin,
-						   sizeof(char *) * merkles + 1);
-		for (i = 0; i < merkles; i++) {
-			char *merkle = json_array_string(arr, i);
+	hex2bin(&pool->data, data, dsize);
+	pool->weight = weight;
+	pool->nonce_size = nonce_size;
 
-			pool->swork.merkle_bin[i] = cgmalloc(32);
-			if (opt_protocol)
-				applog(LOG_DEBUG, "merkle %d: %s", i, merkle);
-			ret = hex2bin(pool->swork.merkle_bin[i], merkle, 32);
-			free(merkle);
-			if (unlikely(!ret)) {
-				applog(LOG_ERR, "Failed to convert merkle to merkle_bin in parse_notify");
-				goto out_unlock;
-			}
-		}
-	}
-	pool->merkles = merkles;
-	if (pool->merkles < 2)
-		pool->bad_work++;
-	if (clean)
-		pool->nonce2 = 0;
-#if 0
-	header_len = 		 strlen(pool->bbversion) +
-				 strlen(pool->prev_hash);
-	/* merkle_hash */	 32 +
-				 strlen(pool->ntime) +
-				 strlen(pool->nbit) +
-	/* nonce */		 8 +
-	/* workpadding */	 96;
-#endif
-	snprintf(header, 257,
-		"%s%s%s%s%s%s%s",
-		pool->bbversion,
-		pool->prev_hash,
-		blank_merkle,
-		pool->ntime,
-		pool->nbit,
-		"00000000", /* nonce */
-		workpadding);
+	pool->nonce2 = 0;
+	pool->nonce2_offset = 64;
+	pool->n2size= 8;
 
-	ret = hex2bin(pool->header_bin, header, 128);
-	if (unlikely(!ret)) {
-		applog(LOG_ERR, "Failed to convert header to header_bin in parse_notify");
-		goto out_unlock;
-	}
-
-	cb1 = alloca(cb1_len);
-	ret = hex2bin(cb1, coinbase1, cb1_len);
-	if (unlikely(!ret)) {
-		applog(LOG_ERR, "Failed to convert cb1 to cb1_bin in parse_notify");
-		goto out_unlock;
-	}
-	cb2 = alloca(cb2_len);
-	ret = hex2bin(cb2, coinbase2, cb2_len);
-	if (unlikely(!ret)) {
-		applog(LOG_ERR, "Failed to convert cb2 to cb2_bin in parse_notify");
-		goto out_unlock;
-	}
-	free(pool->coinbase);
-	pool->coinbase = cgcalloc(alloc_len, 1);
-	cg_memcpy(pool->coinbase, cb1, cb1_len);
-	if (pool->n1_len)
-		cg_memcpy(pool->coinbase + cb1_len, pool->nonce1bin, pool->n1_len);
-	cg_memcpy(pool->coinbase + cb1_len + pool->n1_len + pool->n2size, cb2, cb2_len);
-	if (opt_debug || opt_decode) {
-		char *cb = bin2hex(pool->coinbase, pool->coinbase_len);
-
-		if (opt_decode)
-			decode_exit(pool, cb);
-		applog(LOG_DEBUG, "Pool %d coinbase %s", pool->pool_no, cb);
-		free(cb);
-	}
 out_unlock:
 	cg_wunlock(&pool->data_lock);
 
 	if (opt_protocol) {
 		applog(LOG_DEBUG, "job_id: %s", job_id);
-		applog(LOG_DEBUG, "prev_hash: %s", prev_hash);
-		applog(LOG_DEBUG, "coinbase1: %s", coinbase1);
-		applog(LOG_DEBUG, "coinbase2: %s", coinbase2);
-		applog(LOG_DEBUG, "bbversion: %s", bbversion);
-		applog(LOG_DEBUG, "nbit: %s", nbit);
-		applog(LOG_DEBUG, "ntime: %s", ntime);
-		applog(LOG_DEBUG, "clean: %s", clean ? "yes" : "no");
+		applog(LOG_DEBUG, "weight: %f", weight);
+		applog(LOG_DEBUG, "nonce_size: %d", nonce_size);
+		applog(LOG_DEBUG, "data: %s", data);
 	}
-	free(coinbase1);
-	free(coinbase2);
 
 	/* A notify message is the closest stratum gets to a getwork */
 	pool->getwork_requested++;
@@ -2652,7 +2545,7 @@ bool parse_method(struct pool *pool, char *s)
 	if (!buf)
 		goto out_decref;
 
-	if (!strncasecmp(buf, "mining.notify", 13)) {
+	if (!strncasecmp(buf, "job", 3)) {
 		if (parse_notify(pool, params))
 			pool->stratum_notify = ret = true;
 		else
@@ -2699,6 +2592,10 @@ out:
 
 bool auth_stratum(struct pool *pool)
 {
+	pool->probed = true;
+	successful_connect = true;
+	return true;
+
 	json_t *val = NULL, *res_val, *err_val;
 	char s[RBUFSIZE], *sret = NULL;
 	json_error_t err;
@@ -3257,20 +3154,6 @@ rereceive:
 	sessionid = get_sessionid(res_val);
 	if (!sessionid)
 		applog(LOG_DEBUG, "Failed to get sessionid in initiate_stratum");
-	nonce1 = json_array_string(res_val, 1);
-	if (!valid_hex(nonce1)) {
-		applog(LOG_INFO, "Failed to get valid nonce1 in initiate_stratum");
-		free(sessionid);
-		free(nonce1);
-		goto out;
-	}
-	n2size = json_integer_value(json_array_get(res_val, 2));
-	if (n2size < 2 || n2size > 16) {
-		applog(LOG_INFO, "Failed to get valid n2size in initiate_stratum");
-		free(sessionid);
-		free(nonce1);
-		goto out;
-	}
 
 	if (sessionid && pool->sessionid && !strcmp(sessionid, pool->sessionid)) {
 		applog(LOG_NOTICE, "Pool %d successfully negotiated resume with the same session ID",
@@ -3278,6 +3161,7 @@ rereceive:
 	}
 
 	cg_wlock(&pool->data_lock);
+	/*
 	tmp = pool->sessionid;
 	pool->sessionid = sessionid;
 	free(tmp);
@@ -3289,6 +3173,9 @@ rereceive:
 	pool->nonce1bin = cgcalloc(pool->n1_len, 1);
 	hex2bin(pool->nonce1bin, pool->nonce1, pool->n1_len);
 	pool->n2size = n2size;
+	*/
+	pool->n1_len = 0;
+	pool->n2size = 8;
 	cg_wunlock(&pool->data_lock);
 
 	if (sessionid)
@@ -3685,4 +3572,25 @@ void _cg_memcpy(void *dest, const void *src, unsigned int n, const char *file, c
 		return;
 	}
 	memcpy(dest, src, n);
+}
+
+void weight_to_target(uint32_t* target, double weight) {
+    double calc = pow(2, 256 - weight);
+    for(int i=0; i<8; ++i) {
+        target[i] = fmod(calc, 4294967296L);
+        calc /= 4294967296L;
+    }
+    for(int i=0; i<8; ++i) {
+        if (target[i]) {
+            target[i] = target[i] - 1;
+            break;
+        }
+        target[i] = 4294967295L;
+    }
+	if (opt_debug) {
+        char *htarget = bin2hex(target, 32);
+
+        applog(LOG_DEBUG, "Generated target %s (weight=%f)", htarget, weight);
+        free(htarget);
+    }
 }

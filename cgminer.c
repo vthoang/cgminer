@@ -7570,54 +7570,40 @@ static void gen_stratum_work(struct pool *pool, struct work *work)
 	/* Update coinbase. Always use an LE encoded nonce2 to fill in values
 	 * from left to right and prevent overflow errors with small n2sizes */
 	nonce2le = htole64(pool->nonce2);
-	cg_memcpy(pool->coinbase + pool->nonce2_offset, &nonce2le, pool->n2size);
+	cg_memcpy(pool->data + pool->nonce2_offset, &nonce2le, pool->n2size);
 	work->nonce2 = pool->nonce2++;
 	work->nonce2_len = pool->n2size;
 
 	/* Downgrade to a read lock to read off the pool variables */
 	cg_dwlock(&pool->data_lock);
 
-	/* Generate merkle root */
-	gen_hash(pool->coinbase, merkle_root, pool->coinbase_len);
-	cg_memcpy(merkle_sha, merkle_root, 32);
-	for (i = 0; i < pool->merkles; i++) {
-		cg_memcpy(merkle_sha + 32, pool->swork.merkle_bin[i], 32);
-		gen_hash(merkle_sha, merkle_root, 64);
-		cg_memcpy(merkle_sha, merkle_root, 32);
-	}
-	data32 = (uint32_t *)merkle_sha;
-	swap32 = (uint32_t *)merkle_root;
-	flip32(swap32, data32);
-
-	/* Copy the data template from header_bin */
-	cg_memcpy(work->data, pool->header_bin, 112);
-	cg_memcpy(work->data + 36, merkle_root, 32);
+	/* Copy the data template from the pool */
+	cg_memcpy(work->data, pool->data, 64);
+	memset(work->data + 64, 0, 16);
 
 	/* Store the stratum work diff to check it still matches the pool's
 	 * stratum diff when submitting shares */
-	work->sdiff = pool->sdiff;
+	//work->sdiff = pool->sdiff;
 
 	/* Copy parameters required for share submission */
 	work->job_id = strdup(pool->swork.job_id);
-	work->nonce1 = strdup(pool->nonce1);
-	work->ntime = strdup(pool->ntime);
+	//work->nonce1 = strdup(pool->nonce1);
+	//work->ntime = strdup(pool->ntime);
 	cg_runlock(&pool->data_lock);
 
 	if (opt_debug) {
-		char *header, *merkle_hash;
+		char *header;
 
-		header = bin2hex(work->data, 112);
-		merkle_hash = bin2hex((const unsigned char *)merkle_root, 32);
-		applog(LOG_DEBUG, "Generated stratum merkle %s", merkle_hash);
+		header = bin2hex(work->data, 80);
 		applog(LOG_DEBUG, "Generated stratum header %s", header);
 		applog(LOG_DEBUG, "Work job_id %s nonce2 %"PRIu64" ntime %s", work->job_id,
 		       work->nonce2, work->ntime);
 		free(header);
-		free(merkle_hash);
 	}
 
 	calc_midstate(pool, work);
-	set_target(work->target, work->sdiff);
+	//set_target(work->target, work->sdiff);
+	weight_to_target(work->target, pool->weight);
 
 	local_work++;
 	work->pool = pool;
@@ -10176,7 +10162,8 @@ int main(int argc, char *argv[])
 			hex2bin(&bench_hidiff_bins[i][0], &bench_hidiffs[i][0], 160);
 			hex2bin(&bench_lodiff_bins[i][0], &bench_lodiffs[i][0], 160);
 		}
-		set_target(bench_target, 32);
+		//set_target(bench_target, 32);
+		weight_to_target(bench_target, 18.0);
 	}
 
 #ifdef HAVE_CURSES

@@ -1037,11 +1037,15 @@ int ser_number(unsigned char *s, int32_t val)
 	int32_t *i32 = (int32_t *)&s[1];
 	int len;
 
+	if (val < 17) {
+		s[0] = 0x50 + val;
+		return 1;
+	}
 	if (val < 128)
 		len = 1;
-	else if (val < 16512)
+	else if (val < 32768)
 		len = 2;
-	else if (val < 2113664)
+	else if (val < 8388608)
 		len = 3;
 	else
 		len = 4;
@@ -1328,6 +1332,20 @@ void timeraddspec(struct timespec *a, const struct timespec *b)
 	spec_nscheck(a);
 }
 
+#ifdef USE_BITMAIN_SOC
+static int __maybe_unused timespec_to_ms(struct timespec *ts)
+{
+	return ts->tv_sec * 1000 + ts->tv_nsec / 1000000;
+}
+
+/* Subtract b from a */
+static void __maybe_unused timersubspec(struct timespec *a, const struct timespec *b)
+{
+	a->tv_sec -= b->tv_sec;
+	a->tv_nsec -= b->tv_nsec;
+	spec_nscheck(a);
+}
+#else /* USE_BITMAIN_SOC */
 static int timespec_to_ms(struct timespec *ts)
 {
 	return ts->tv_sec * 1000 + ts->tv_nsec / 1000000;
@@ -1345,6 +1363,7 @@ static void timersubspec(struct timespec *a, const struct timespec *b)
 	a->tv_nsec -= b->tv_nsec;
 	spec_nscheck(a);
 }
+#endif /* USE_BITMAIN_SOC */
 
 char *Strcasestr(char *haystack, const char *needle)
 {
@@ -1484,6 +1503,25 @@ static void nanosleep_abstime(struct timespec *ts_end)
 /* Reentrant version of cgsleep functions allow start time to be set separately
  * from the beginning of the actual sleep, allowing scheduling delays to be
  * counted in the sleep. */
+#ifdef USE_BITMAIN_SOC
+void cgsleep_ms_r(cgtimer_t *ts_start, int ms)
+{
+	struct timespec ts_end;
+
+	ms_to_timespec(&ts_end, ms);
+	timeraddspec(&ts_end, ts_start);
+	nanosleep_abstime(&ts_end);
+}
+
+void cgsleep_us_r(cgtimer_t *ts_start, int64_t us)
+{
+	struct timespec ts_end;
+
+	us_to_timespec(&ts_end, us);
+	timeraddspec(&ts_end, ts_start);
+	nanosleep_abstime(&ts_end);
+}
+#else /* USE_BITMAIN_SOC */
 int cgsleep_ms_r(cgtimer_t *ts_start, int ms)
 {
 	struct timespec ts_end, ts_diff;
@@ -1517,6 +1555,7 @@ int64_t cgsleep_us_r(cgtimer_t *ts_start, int64_t us)
 	nanosleep_abstime(&ts_end);
 	return usdiff;
 }
+#endif /* USE_BITMAIN_SOC */
 #else /* CLOCK_MONOTONIC */
 #ifdef __MACH__
 #include <mach/clock.h>
@@ -2205,11 +2244,6 @@ static bool configure_stratum_mining(struct pool *pool)
 	const char *key;
 	json_t *response, *value, *res_val, *err_val;
 	json_error_t err;
-
-#ifdef USE_GEKKO
-	if (!opt_gekko_boost)
-		return true;
-#endif
 
 	snprintf(s, RBUFSIZE,
 		 "{\"id\": %d, \"method\": \"mining.configure\", \"params\": "
@@ -3046,7 +3080,7 @@ static bool setup_stratum_socket(struct pool *pool)
 		 * we can connect to quickly. */
 		noblock_socket(sockd);
 		if (connect(sockd, p->ai_addr, p->ai_addrlen) == -1) {
-			struct timeval tv_timeout = {1, 0};
+			struct timeval tv_timeout = {2, 0};
 			int selret;
 			fd_set rw;
 
@@ -3190,8 +3224,26 @@ resend:
 	}
 
 	/* Attempt to configure stratum protocol feature set first. */
+#ifdef USE_GEKKO
+	configure_stratum_mining(pool);
+	if (!pool->sock) {
+		//repair damage done by configure_stratum_mining
+		if (!setup_stratum_socket(pool)) {
+			sockd = false;
+			goto out;
+		}
+
+		sockd = true;
+
+		if (recvd) {
+			/* Get rid of any crap lying around if we're resending */
+			clear_sock(pool);
+		}
+	}
+#else
 	if (!configure_stratum_mining(pool))
 		goto out;
+#endif
 
 	if (recvd) {
 		sprintf(s, "{\"id\": %d, \"method\": \"mining.subscribe\", \"params\": []}", swork_id++);

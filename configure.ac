@@ -64,6 +64,7 @@ AC_FUNC_ALLOCA
 
 have_win32=false
 PTHREAD_FLAGS="-lpthread"
+LIBZ_LIBS="-lz"
 DLOPEN_FLAGS="-ldl"
 WS2_LIBS=""
 MM_LIBS=""
@@ -222,6 +223,17 @@ if test "x$avalon7" = xyes; then
 fi
 AM_CONDITIONAL([HAS_AVALON7], [test x$avalon7 = xyes])
 
+avalon8="no"
+
+AC_ARG_ENABLE([avalon8],
+	[AC_HELP_STRING([--enable-avalon8],[Compile support for Avalon8 (default disabled)])],
+	[avalon8=$enableval]
+	)
+if test "x$avalon8" = xyes; then
+	AC_DEFINE([USE_AVALON8], [1], [Defined to 1 if Avalon8 support is wanted])
+fi
+AM_CONDITIONAL([HAS_AVALON8], [test x$avalon8 = xyes])
+
 avalon_miner="no"
 
 AC_ARG_ENABLE([avalon_miner],
@@ -299,6 +311,53 @@ if test "x$bitfury16" = xyes; then
 fi
 AM_CONDITIONAL([HAS_BITFURY16], [test x$bitfury16 = xyes])
 
+bitmain_soc="no"
+bitmain_R4="no"
+bitmain_S9="no"
+bitmain_T9="no"
+bitmain_T9P="no"
+
+AC_ARG_ENABLE([bitmain_soc],
+	[AC_HELP_STRING([--enable-bitmain_soc],[Compile support for Bitmain ASICs STANDALONE(default disabled)])],
+	[bitmain_soc=$enableval]
+	)
+AC_ARG_ENABLE([bitmain_R4],
+	[AC_HELP_STRING([--enable-bitmain_R4],[Compile support for Bitmain R4])],
+	[bitmain_R4=$enableval]
+	)
+AC_ARG_ENABLE([bitmain_S9],
+	[AC_HELP_STRING([--enable-bitmain_S9],[Compile support for Bitmain S9])],
+	[bitmain_S9=$enableval]
+	)
+AC_ARG_ENABLE([bitmain_T9],
+	[AC_HELP_STRING([--enable-bitmain_T9],[Compile support for Bitmain T9])],
+	[bitmain_T9=$enableval]
+	)
+AC_ARG_ENABLE([bitmain_T9P],
+	[AC_HELP_STRING([--enable-bitmain_T9P],[Compile support for Bitmain T9+])],
+	[bitmain_T9P=$enableval]
+	)
+if test "x$bitmain_soc" = xyes; then
+	AC_DEFINE([USE_BITMAIN_SOC], [1], [Defined to 1 if Bitmain ASICs support is wanted])
+    if test "x$bitmain_R4" = xyes; then
+        AC_DEFINE([R4], [1], [Defined to 1 for R4])
+    fi
+    if test "x$bitmain_S9" = xyes; then
+        AC_DEFINE([S9_63], [1], [Defined to 1 for S9])
+    fi
+    if test "x$bitmain_T9" = xyes; then
+        AC_DEFINE([S9_PLUS], [1], [Defined to 1 for T9])
+    fi
+    if test "x$bitmain_T9P" = xyes; then
+        AC_DEFINE([T9_18], [1], [Defined to 1 for T9+])
+    fi
+    if test "x$bitmain_R4$bitmain_S9$bitmain_T9$bitmain_T9P" = xnononono; then
+        AC_DEFINE([S9_63], [1], [Defined to 1 for default])
+    fi
+	drivercount=x$drivercount
+	standalone="yes"
+fi
+AM_CONDITIONAL([HAS_BITMAIN_SOC], [test x$bitmain_soc = xyes])
 
 bitmine_A1="no"
 
@@ -539,7 +598,7 @@ fi
 
 
 #Add a new device to this list if it needs libusb, along with a no on the end.
-if test x$avalon$avalon2$avalon4$avalon7$avalon_miner$bitforce$bitfury$blockerupter$gekko$modminer$bflsc$icarus$hashfast$hashratio$klondike$drillbit$cointerra$ants1$ants3 != xnonononononononononononononononononono; then
+if test x$avalon$avalon2$avalon4$avalon7$avalon8$avalon_miner$bitforce$bitfury$blockerupter$gekko$modminer$bflsc$icarus$hashfast$hashratio$klondike$drillbit$cointerra$ants1$ants3 != xnononononononononononononononononononono; then
 	want_usbutils=true
 else
 	want_usbutils=false
@@ -551,7 +610,7 @@ else
 	want_libbitfury=false
 fi
 
-if test x$avalon2$avalon4$avalon7$avalon_miner$gekko$hashratio != xnononononono; then
+if test x$avalon2$avalon4$avalon7$avalon8$avalon_miner$gekko$hashratio != xnonononononono; then
 	want_crc16=true
 else
 	want_crc16=false
@@ -559,12 +618,13 @@ fi
 
 AM_CONDITIONAL([NEED_FPGAUTILS], [test x$modminer != xno])
 AM_CONDITIONAL([WANT_USBUTILS], [test x$want_usbutils != xfalse])
+AM_CONDITIONAL([NEED_LIBZ], [test x$bitmain_soc != xno])
 AM_CONDITIONAL([WANT_LIBBITFURY], [test x$want_libbitfury != xfalse])
 AM_CONDITIONAL([HAVE_CURSES], [test x$curses = xyes])
 AM_CONDITIONAL([HAVE_WINDOWS], [test x$have_win32 = xtrue])
 AM_CONDITIONAL([HAVE_x86_64], [test x$have_x86_64 = xtrue])
 AM_CONDITIONAL([WANT_CRC16], [test x$want_crc16 != xfalse])
-AM_CONDITIONAL([NEED_I2C_CONTEXT], [test x$avalon4$avalon7 != xnono])
+AM_CONDITIONAL([NEED_I2C_CONTEXT], [test x$avalon4$avalon7$avalon8 != xnonono])
 
 if test "x$want_usbutils" != xfalse; then
 	AC_DEFINE([USE_USBUTILS], [1], [Defined to 1 if usbutils support required])
@@ -705,6 +765,7 @@ fi
 AC_DEFINE_UNQUOTED([CGMINER_PREFIX], ["$prefix/bin"], [Path to cgminer install])
 
 AC_SUBST(JANSSON_LIBS)
+AC_SUBST(LIBZ_LIBS)
 AC_SUBST(PTHREAD_FLAGS)
 AC_SUBST(DLOPEN_FLAGS)
 AC_SUBST(PTHREAD_LIBS)
@@ -799,6 +860,12 @@ else
 	echo "  Avalon7.ASICs........: Disabled"
 fi
 
+if test "x$avalon8" = xyes; then
+	echo "  Avalon8.ASICs........: Enabled"
+else
+	echo "  Avalon8.ASICs........: Disabled"
+fi
+
 if test "x$avalon_miner" = xyes; then
 	echo "  Avalon miner.ASICs...: Enabled"
 else
@@ -840,6 +907,13 @@ if test "x$bitfury16" = xyes; then
 else
 	echo "  BitFury16.ASICs......: Disabled"
 fi
+
+if test "x$bitmain_soc" = xyes; then
+	echo "  Bitmain.ASICs......: Enabled"
+else
+	echo "  Bitmain.ASICs......: Disabled"
+fi
+
 
 if test "x$blockerupter" = xyes; then
 	echo "  BlockErupter.ASICs...: Enabled"
@@ -927,7 +1001,7 @@ else
 fi
 
 #Add any new device to this, along with a no on the end of the test
-if test "x$avalon$avalon2$avalon4$avalon7$avalon_miner$bab$bflsc$bitforce$bitfury$bitfury16$blockerupter$gekko$hashfast$hashratio$icarus$klondike$knc$modminer$drillbit$minion$cointerra$bitmine_A1$ants1$ants2$ants3$sp10$sp30$dragonmint_t1" = xnononononononononononononononononononononononononononono; then
+if test "x$avalon$avalon2$avalon4$avalon7$avalon8$avalon_miner$bab$bflsc$bitforce$bitfury$bitfury16$bitmain_soc$blockerupter$gekko$hashfast$hashratio$icarus$klondike$knc$modminer$drillbit$minion$cointerra$bitmine_A1$ants1$ants2$ants3$sp10$sp30$dragonmint_t1" = xnonononononononononononononononononononononononononononono; then
 	echo
 	AC_MSG_ERROR([No mining devices configured in])
 	echo
@@ -946,7 +1020,7 @@ echo "Compilation............: make (or gmake)"
 echo "  CPPFLAGS.............: $CPPFLAGS"
 echo "  CFLAGS...............: $CFLAGS"
 echo "  LDFLAGS..............: $LDFLAGS $PTHREAD_FLAGS"
-echo "  LDADD................: $DLOPEN_FLAGS $LIBCURL_LIBS $LIBSYSTEMD_LIBS $JANSSON_LIBS $PTHREAD_LIBS $NCURSES_LIBS $PDCURSES_LIBS $WS2_LIBS $MATH_LIBS $LIBUSB_LIBS $RT_LIBS"
+echo "  LDADD................: $DLOPEN_FLAGS $LIBCURL_LIBS $LIBSYSTEMD_LIBS $JANSSON_LIBS $LIBZ_LIBS $PTHREAD_LIBS $NCURSES_LIBS $PDCURSES_LIBS $WS2_LIBS $MATH_LIBS $LIBUSB_LIBS $RT_LIBS"
 echo
 echo "Installation...........: make install (as root if needed, with 'su' or 'sudo')"
 echo "  prefix...............: $prefix"

@@ -1,0 +1,34 @@
+[Unit]
+Description=cgminer
+After=network.target
+After=graphical.target
+
+[Service]
+Type=forking
+# Type=simple
+User=denix
+
+#Start:
+# screen -dm creates detached session that forks.
+#  use this with Type=forking
+ExecStart=/usr/bin/screen -LdmS cgminer /usr/local/bin/cgminer --config /home/denix/.cgminer/cgminer.conf
+#
+# screen -Dm creates detached session that doesn't fork.
+#  use this with Type=simple
+# ExecStart=/usr/bin/screen -LDmS cgminer /usr/bin/cgminer --config /home/denix/cgminer.conf
+
+#Stop:
+# tell cgminer to quit (not screen), and screen will exit
+ExecStop=/usr/bin/screen -S cgminer -X stuff 'q'
+
+# or tell screen to quit and clobber cgminer - not best choice
+#ExecStop=/usr/bin/screen -S cgminer -X quit
+#Probably need a kill definition in case the miner is hung
+
+#Reload:
+# sending the string 'scy' (settings, restart, yes) to cgminer will
+#  cause a restart which will re-read config file if using one
+ExecReload=/usr/bin/screen -S cgminer -X stuff 'scy'
+
+[Install]
+WantedBy=multi-user.target
